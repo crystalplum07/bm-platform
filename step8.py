@@ -2907,10 +2907,9 @@ def show_step_8_content():
         if use_default_bins:
             try:
                 with st.spinner("🚀 正在从云端加载默认坐标轴刻度表，请稍候..."):
-                    # 📌 TODO：将下方链接替换为你上传到 GitHub 的刻度表文件地址
-                    # 文件路径示例：my-actuary-tool/main/坐标轴刻度表-step8.xlsx
+                    # 📌 默认刻度表：crystalplum07/bm-platform 仓库 templates/step8-坐标轴刻度表.xlsx
                     # 表头必须包含：m_id, x_bins, y_bins。
-                    default_bins_url = "https://raw.githubusercontent.com/lifeact666/-annual-report-tool/main/templates/%E5%9D%90%E6%A0%87%E8%BD%B4%E5%88%BB%E5%BA%A6%E8%A1%A8-step8%20%E7%9A%84%E5%89%AF%E6%9C%AC.xlsx"
+                    default_bins_url = "https://raw.githubusercontent.com/crystalplum07/bm-platform/main/templates/step8-%E5%9D%90%E6%A0%87%E8%BD%B4%E5%88%BB%E5%BA%A6%E8%A1%A8.xlsx"
                     custom_bins_map = _load_bins_cached(default_bins_url)
                     st.session_state["custom_bins_map"] = custom_bins_map
                 st.success(f"✅ 已从云端加载默认刻度表（共 {len(custom_bins_map)} 个图）")
@@ -2958,7 +2957,7 @@ def show_step_8_content():
             try:
                 with st.spinner("🚀 正在从云端加载默认注释表，请稍候..."):
                     # 🌟 核心修改 2：替换为 raw.githubusercontent.com 的原生读取链接
-                    default_url = "https://raw.githubusercontent.com/lifeact666/-annual-report-tool/main/templates/RD-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF-step8.xlsx"
+                    default_url = "https://raw.githubusercontent.com/crystalplum07/bm-platform/main/templates/step8-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF.xlsx"
                     df_notes = _load_notes_cached(default_url)
                 st.success("✅ 内置默认注释表从云端加载成功！")
             except Exception as e:
