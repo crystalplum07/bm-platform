@@ -63,7 +63,7 @@ def get_color_map(all_cos):
 
 # ==================== 1. 页面基础配置 (必须在最顶端且仅此一份) ====================
 st.set_page_config(
-    page_title="DigiLife 观衡·财精数据洞察平台 ", 
+    page_title="新准则财务报告洞察平台", 
     page_icon="Digi.png",  # ✨ 修改点：加上 .png 后缀
     layout="wide"
 )
@@ -499,7 +499,7 @@ if not st.session_state['logged_in']:
     /* 毛玻璃卡片底座，微微泛青蓝光 */
     [data-testid="column"]:nth-of-type(2) {background: rgba(255,255,255,0.08); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border-radius: 20px; border: 1px solid rgba(0,243,255,0.3); box-shadow: 0 15px 35px rgba(0,0,0,0.5), inset 0 0 15px rgba(0,243,255,0.15); padding: 40px 30px; margin-top: 6vh;}
     
-    /* 💎 寿研数智年报平台 - 银青渐变全息发光 */
+    /* 💎 新准则财务报告洞察平台 - 银青渐变全息发光 */
     .title-glow {background: linear-gradient(90deg, #FFFFFF 0%, #76D2FF 50%, #00F3FF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900; filter: drop-shadow(0 0 15px rgba(0,243,255,0.6));}
 
     div[data-baseweb="input"]>div, div[data-baseweb="select"]>div {background: rgba(0,0,0,0.4)!important; border: 1px solid rgba(0,243,255,0.3)!important; border-radius: 8px!important;}
@@ -523,7 +523,7 @@ if not st.session_state['logged_in']:
 
     _, col2, _ = st.columns([1, 1.5, 1])
     with col2:
-        st.markdown("<div style='text-align:center; margin-bottom:30px;'><h1 style='font-size:32px; margin:0;'><span class='title-glow'>寿研数智年报平台</span></h1><p style='color:#76D2FF; font-size:11px; letter-spacing:4px; margin-top:8px; font-weight:bold;'>ACTUARIAL INTELLIGENCE</p></div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; margin-bottom:30px;'><h1 style='font-size:32px; margin:0;'><span class='title-glow'>新准则财务报告洞察平台</span></h1><p style='color:#76D2FF; font-size:11px; letter-spacing:4px; margin-top:8px; font-weight:bold;'>ACTUARIAL INTELLIGENCE</p></div>", unsafe_allow_html=True)
         
         u_type = st.radio("访问权限", ["普通用户", "项目组成员"], label_visibility="collapsed", horizontal=True)
         
@@ -551,15 +551,15 @@ if not st.session_state['logged_in']:
         # 启动大按钮
         if st.button("启 动 系 统", type="primary", use_container_width=True):
             # 分别校验普通用户和项目组成员的密码
-            if u_type == "普通用户" and sec_code != "KPMG1234": 
+            if u_type == "普通用户" and sec_code != "ACTLIFE1234": 
                 st.error("❌ 拒绝访问：普通用户安全码错误")
-            elif u_type == "项目组成员" and sec_code != "KPMG666": 
+            elif u_type == "项目组成员" and sec_code != "ACTLIFE666": 
                 st.error("❌ 拒绝访问：项目组成员安全码错误")
             else: 
                 st.session_state.update({'logged_in':True, 'user_role':u_type, 'api_key':api_input, 'base_url':d_url, 'model_name':d_mod})
                 st.rerun()
 
-        st.markdown("<div style='text-align:center; color:#94A3B8; font-size:11px; margin-top:30px; letter-spacing:1px;'>系统版本：v3.0 (Alpha) © 2026<br>Developed by 林友沐Bella@KPMG</div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center; color:#94A3B8; font-size:11px; margin-top:30px; letter-spacing:1px;'>系统版本：v3.0 (Alpha) © 2026<br>Developed by KPMG ACT Life</div>", unsafe_allow_html=True)
 
     # 阻止程序继续往下渲染主系统界面
     st.stop()
@@ -578,7 +578,7 @@ else:
     with top_col1:
         st.markdown(
             f"<div class='no-print' style='color: #6c757d; font-size: 14px; margin-top: 8px;'>"
-            f"当前身份：<b>{user_role}</b> | 欢迎使用寿研数智分析平台"
+            f"当前身份：<b>{user_role}</b> | 欢迎使用新准则财务报告洞察平台"
             f"</div>", 
             unsafe_allow_html=True
         )
@@ -589,7 +589,7 @@ else:
             
     # ==================== 主界面标题 ====================
     st.markdown("<hr style='margin-top: 5px; margin-bottom: 15px;'>", unsafe_allow_html=True)
-    st.markdown("<h1 class='no-print' style='font-weight:700; padding-top:10px;'>寿研数智・年报处理平台</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='no-print' style='font-weight:700; padding-top:10px;'>新准则财务报告洞察平台</h1>", unsafe_allow_html=True)
 
     # ---------------- 核心权限控制 ----------------
     if st.session_state['user_role'] == "项目组成员":
