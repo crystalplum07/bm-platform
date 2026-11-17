@@ -2,7 +2,7 @@
 #输入 D: 并按回车。
 #输入 cd D:\实习\实习公司\毕马威\网页实现 并按回车。
 #输入 streamlit run app.py 并按回车。
-import streamlit as st
+from report_i18n import localized_st as st, is_english, translate_text
 import requests
 from bs4 import BeautifulSoup
 import plotly.express as px
@@ -868,12 +868,21 @@ def show_step_8_content():
             return
         outlier_notes = meta.get('outlier_notes', [])
 
-        rule_text = "类别代表值统一采用中位数。"
+        rule_text = (
+            "Category representative values use the median."
+            if is_english() else "类别代表值统一采用中位数。"
+        )
 
         outlier_text = ""
         if outlier_notes:
             prefix = f"{ct_label}" if ct_label else ""
-            outlier_text = f"{prefix}异常值剔除明细：" + "；".join(outlier_notes)
+            if is_english():
+                prefix_en = translate_text(prefix, "en") if prefix else ""
+                outlier_text = f"{prefix_en} outlier exclusions: " + "; ".join(
+                    translate_text(str(note), "en") for note in outlier_notes
+                )
+            else:
+                outlier_text = f"{prefix}异常值剔除明细：" + "；".join(outlier_notes)
 
         st.session_state[f"_comp_footnote_{m_id}"] = {
             "rule": rule_text,
@@ -1068,20 +1077,31 @@ def show_step_8_content():
             """根据m_id和数据自动生成行业分析内容，返回字符串"""
             import numpy as np
 
+            english_mode = is_english()
+
+            def display(value):
+                return translate_text(str(value), "en") if english_mode else str(value)
+
             # ── 工具函数0：根据 smart_category_average 返回的 _meta，生成与图表口径一致的统计描述 ──
             # smart_category_average 现在统一返回"中位数"，method 恒为"中位数"，
             # 下面按"中位数"分支处理；其余分支保留只是为了兼容旧数据结构，不会再触发。
             def stat_phrase(meta):
                 if not meta:
-                    return "均值"
+                    return "mean" if english_mode else "均值"
                 method = meta.get('method', '均值')
                 n_orig = meta.get('n_original', 0)
                 n_used = meta.get('n_used', 0)
                 if "中位数" in method:
+                    if english_mode:
+                        return f"median ({n_orig} companies)"
                     return f"中位数（{n_orig}家公司）"
                 if "剔除异常值" in method:
                     n_removed = max(n_orig - n_used, 0)
+                    if english_mode:
+                        return f"mean ({n_used} of {n_orig} companies after excluding {n_removed} outliers)"
                     return f"均值（{n_orig}家中剔除{n_removed}家异常值后，基于{n_used}家计算）"
+                if english_mode:
+                    return f"mean ({n_orig} companies)"
                 return f"均值（{n_orig}家公司）"
      
             # ── 工具函数1：取某公司类型某字段某年的所有公司均值 ──
@@ -1111,17 +1131,35 @@ def show_step_8_content():
                 parts = []
                 if rises:
                     rises.sort(key=lambda x: -x[1])
-                    parts.append(
-                        f"{len(rises)}类机构均值上升，其中{rises[0][0]}增幅最大"
-                        f"（+{rises[0][1]:.1%}，均值约{rises[0][2]:.0f}{unit}）"
-                    )
+                    if english_mode:
+                        parts.append(
+                            f"The mean increased in {len(rises)} company categories; "
+                            f"{display(rises[0][0])} recorded the largest increase "
+                            f"(+{rises[0][1]:.1%}), with a mean of approximately "
+                            f"{rises[0][2]:.0f} {display(unit)}"
+                        )
+                    else:
+                        parts.append(
+                            f"{len(rises)}类机构均值上升，其中{rises[0][0]}增幅最大"
+                            f"（+{rises[0][1]:.1%}，均值约{rises[0][2]:.0f}{unit}）"
+                        )
                 if falls:
                     falls.sort(key=lambda x: x[1])
-                    parts.append(
-                        f"{len(falls)}类机构均值下降，其中{falls[0][0]}降幅最大"
-                        f"（{falls[0][1]:.1%}，均值约{falls[0][2]:.0f}{unit}）"
-                    )
-                return "；".join(parts) + "。" if parts else ""
+                    if english_mode:
+                        parts.append(
+                            f"The mean decreased in {len(falls)} company categories; "
+                            f"{display(falls[0][0])} recorded the largest decrease "
+                            f"({falls[0][1]:.1%}), with a mean of approximately "
+                            f"{falls[0][2]:.0f} {display(unit)}"
+                        )
+                    else:
+                        parts.append(
+                            f"{len(falls)}类机构均值下降，其中{falls[0][0]}降幅最大"
+                            f"（{falls[0][1]:.1%}，均值约{falls[0][2]:.0f}{unit}）"
+                        )
+                if not parts:
+                    return ""
+                return ("; ".join(parts) + ".") if english_mode else ("；".join(parts) + "。")
      
             # ── 工具函数3：构成型 ──
             def composition_by_type(fields_display, year):
@@ -1133,10 +1171,18 @@ def show_step_8_content():
                         continue
                     main_f   = max(totals, key=totals.get)
                     main_pct = totals[main_f] / grand * 100
-                    lines.append(
-                        f"{ct}以{fields_display[main_f]}为主（占比约{main_pct:.1f}%）"
-                    )
-                return "；".join(lines) + "。" if lines else ""
+                    if english_mode:
+                        lines.append(
+                            f"{display(ct)} is primarily composed of {display(fields_display[main_f])} "
+                            f"(approximately {main_pct:.1f}%)"
+                        )
+                    else:
+                        lines.append(
+                            f"{ct}以{fields_display[main_f]}为主（占比约{main_pct:.1f}%）"
+                        )
+                if not lines:
+                    return ""
+                return ("; ".join(lines) + ".") if english_mode else ("；".join(lines) + "。")
      
             # ── 工具函数4：计算字段的涨跌描述（两个字段相减）──
             def calc_two_field_diff(field_a, field_b, year_c, year_p,
@@ -1156,12 +1202,24 @@ def show_step_8_content():
                     if net_p and net_p != 0:
                         chg       = (net_c - net_p) / abs(net_p)
                         direction = "升" if chg >= 0 else "降"
-                        lines.append(
-                            f"{ct}均值约{net_c:.0f}{unit}（同比{direction}{abs(chg):.1%}）"
-                        )
+                        if english_mode:
+                            direction_en = "up" if chg >= 0 else "down"
+                            lines.append(
+                                f"{display(ct)}: mean approximately {net_c:.0f} {display(unit)} "
+                                f"({direction_en} {abs(chg):.1%} year on year)"
+                            )
+                        else:
+                            lines.append(
+                                f"{ct}均值约{net_c:.0f}{unit}（同比{direction}{abs(chg):.1%}）"
+                            )
                     else:
-                        lines.append(f"{ct}均值约{net_c:.0f}{unit}")
-                return "；".join(lines) + "。" if lines else ""
+                        lines.append(
+                            f"{display(ct)}: mean approximately {net_c:.0f} {display(unit)}"
+                            if english_mode else f"{ct}均值约{net_c:.0f}{unit}"
+                        )
+                if not lines:
+                    return ""
+                return ("; ".join(lines) + ".") if english_mode else ("；".join(lines) + "。")
      
             # ── 工具函数5：分布图通用描述（各类型参与公司数量）──
             def dist_count_summary(year):
@@ -1175,8 +1233,10 @@ def show_step_8_content():
                     )
                     n = df[mask]['公司'].nunique()
                     if n > 0:
-                        lines.append(f"{ct}{n}家")
-                return "样本：" + "、".join(lines) + "。" if lines else ""
+                        lines.append(f"{display(ct)}: {n} companies" if english_mode else f"{ct}{n}家")
+                if not lines:
+                    return ""
+                return ("Sample: " + "; ".join(lines) + ".") if english_mode else ("样本：" + "、".join(lines) + "。")
      
             # ── 工具函数：获取某 m_id 的 X/Y 轴 bins（与图表展示一致：上传Excel > 页面输入 > 默认）──
             # ── 工具函数：判断某值落在哪个区间，返回区间字符串 ──
@@ -1273,15 +1333,29 @@ def show_step_8_content():
                         y_vals = df_ct[y_col].dropna().tolist()
                         y_label, y_cnt, y_total = most_common_bin(y_vals, y_bins)
 
-                        seg = (
-                            f"{ct}：{meta['title']}24年均值约{x_mean_py if isinstance(x_mean_py, str) else py_str}亿元，"
-                            f"25年均值约{x_mean_cy:.1f}亿元，均值增长率约{growth_str}"
-                        )
-                        if x_label:
-                            seg += f"；{meta['title']}主要集中在{x_label}区间（{x_cnt}/{x_total}家）"
-                        if y_label:
-                            seg += f"，{meta['title']}增长率主要集中在{y_label}区间（{y_cnt}/{y_total}家）"
-                        lines.append(seg + "。")
+                        if english_mode:
+                            metric_en = display(meta['title'])
+                            py_value = x_mean_py if isinstance(x_mean_py, str) else py_str
+                            seg = (
+                                f"{display(ct)}: the mean {metric_en} was approximately {py_value} "
+                                f"RMB 100 mn in {py} and {x_mean_cy:.1f} RMB 100 mn in {cy}; "
+                                f"mean growth was approximately {growth_str}"
+                            )
+                            if x_label:
+                                seg += f"; {metric_en} was primarily concentrated in {x_label} ({x_cnt}/{x_total} companies)"
+                            if y_label:
+                                seg += f"; {metric_en} growth was primarily concentrated in {y_label} ({y_cnt}/{y_total} companies)"
+                            lines.append(seg + ".")
+                        else:
+                            seg = (
+                                f"{ct}：{meta['title']}24年均值约{x_mean_py if isinstance(x_mean_py, str) else py_str}亿元，"
+                                f"25年均值约{x_mean_cy:.1f}亿元，均值增长率约{growth_str}"
+                            )
+                            if x_label:
+                                seg += f"；{meta['title']}主要集中在{x_label}区间（{x_cnt}/{x_total}家）"
+                            if y_label:
+                                seg += f"，{meta['title']}增长率主要集中在{y_label}区间（{y_cnt}/{y_total}家）"
+                            lines.append(seg + "。")
 
                     return "".join(lines)
 
@@ -1318,12 +1392,21 @@ def show_step_8_content():
                         x_label, x_cnt, x_total = most_common_bin(x_vals.tolist(), x_bins)
                         y_label, y_cnt, y_total = most_common_bin(y_vals.tolist(), y_bins)
 
-                        seg = f"{ct}：{x_col}均值约{x_mean:.1f}%，{y_col}均值约{y_mean:.1f}%"
-                        if x_label:
-                            seg += f"；{x_col}主要集中在{x_label}区间（{x_cnt}/{x_total}家）"
-                        if y_label:
-                            seg += f"，{y_col}主要集中在{y_label}区间（{y_cnt}/{y_total}家）"
-                        lines.append(seg + "。")
+                        if english_mode:
+                            x_en, y_en = display(x_col), display(y_col)
+                            seg = f"{display(ct)}: mean {x_en} was approximately {x_mean:.1f}%; mean {y_en} was approximately {y_mean:.1f}%"
+                            if x_label:
+                                seg += f"; {x_en} was primarily concentrated in {x_label} ({x_cnt}/{x_total} companies)"
+                            if y_label:
+                                seg += f"; {y_en} was primarily concentrated in {y_label} ({y_cnt}/{y_total} companies)"
+                            lines.append(seg + ".")
+                        else:
+                            seg = f"{ct}：{x_col}均值约{x_mean:.1f}%，{y_col}均值约{y_mean:.1f}%"
+                            if x_label:
+                                seg += f"；{x_col}主要集中在{x_label}区间（{x_cnt}/{x_total}家）"
+                            if y_label:
+                                seg += f"，{y_col}主要集中在{y_label}区间（{y_cnt}/{y_total}家）"
+                            lines.append(seg + "。")
 
                     return "".join(lines)
 
@@ -1345,7 +1428,13 @@ def show_step_8_content():
                                 continue
                             main_f = max(data_keys, key=lambda k: ratios[k])
                             desc = stat_phrase(ratios.get('_meta'))
-                            lines.append(f"{ct}费用构成主要为{main_f}，占比{desc}为{ratios[main_f]:.1f}%。")
+                            if english_mode:
+                                lines.append(
+                                    f"{display(ct)}: the largest expense component was {display(main_f)}, "
+                                    f"with a {desc} share of {ratios[main_f]:.1f}%. "
+                                )
+                            else:
+                                lines.append(f"{ct}费用构成主要为{main_f}，占比{desc}为{ratios[main_f]:.1f}%。")
                         return "".join(lines)
 
                     if m_id in ("industry_prof_2025", "industry_prof_2024"):
@@ -1361,7 +1450,13 @@ def show_step_8_content():
                                 continue
                             main_f = max(data_keys, key=lambda k: abs(contrib[k]))
                             desc = stat_phrase(contrib.get('_meta'))
-                            lines.append(f"{ct}保险服务业绩主要构成为{main_f}，占比{desc}为{contrib[main_f]:.1f}%。")
+                            if english_mode:
+                                lines.append(
+                                    f"{display(ct)}: the largest component of the Insurance Service Result was "
+                                    f"{display(main_f)}, with a {desc} share of {contrib[main_f]:.1f}%. "
+                                )
+                            else:
+                                lines.append(f"{ct}保险服务业绩主要构成为{main_f}，占比{desc}为{contrib[main_f]:.1f}%。")
                         return "".join(lines)
 
                     if m_id == "industry_prof_mix":
@@ -1375,7 +1470,13 @@ def show_step_8_content():
                                 continue
                             main_f = max(data_keys, key=lambda k: res[k])
                             desc = stat_phrase(res.get('_meta'))
-                            lines.append(f"{ct}利润构成主要为{main_f}，占比{desc}为{res[main_f]:.1f}%。")
+                            if english_mode:
+                                lines.append(
+                                    f"{display(ct)}: the largest profit component was {display(main_f)}, "
+                                    f"with a {desc} share of {res[main_f]:.1f}%. "
+                                )
+                            else:
+                                lines.append(f"{ct}利润构成主要为{main_f}，占比{desc}为{res[main_f]:.1f}%。")
                         return "".join(lines)
 
                     # ---- 通用字段映射类 ----
@@ -1405,7 +1506,13 @@ def show_step_8_content():
                         main_pct = result.get(main_f, 0)
                         display_name = fields_display.get(main_f, main_f)
                         desc = stat_phrase(result.get('_meta'))
-                        lines.append(f"{ct}主要构成为{display_name}，占比{desc}为{main_pct:.1f}%。")
+                        if english_mode:
+                            lines.append(
+                                f"{display(ct)}: the largest component was {display(display_name)}, "
+                                f"with a {desc} share of {main_pct:.1f}%. "
+                            )
+                        else:
+                            lines.append(f"{ct}主要构成为{display_name}，占比{desc}为{main_pct:.1f}%。")
 
                     return "".join(lines)
 
@@ -1467,10 +1574,16 @@ def show_step_8_content():
                             continue
                         top_label = row.idxmax()
                         top_count = row[top_label]
-                        lines.append(
-                            f"{ct}的{meta['name']}主要集中在{top_label}区间"
-                            f"（{int(top_count)}/{int(total)}家）。"
-                        )
+                        if english_mode:
+                            lines.append(
+                                f"{display(ct)}: {display(meta['name'])} was primarily concentrated in "
+                                f"{top_label} ({int(top_count)}/{int(total)} companies)."
+                            )
+                        else:
+                            lines.append(
+                                f"{ct}的{meta['name']}主要集中在{top_label}区间"
+                                f"（{int(top_count)}/{int(total)}家）。"
+                            )
                 
                     return "".join(lines)
 
@@ -2959,19 +3072,35 @@ def show_step_8_content():
                     # 🌟 核心修改 2：替换为 raw.githubusercontent.com 的原生读取链接
                     default_url = "https://raw.githubusercontent.com/crystalplum07/bm-platform/main/templates/step8-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF.xlsx"
                     df_notes = _load_notes_cached(default_url)
+                    st.session_state['step8_default_df_notes'] = df_notes.copy()
+                    st.session_state['step8_notes_active_source'] = 'default'
                 st.success("✅ 内置默认注释表从云端加载成功！")
             except Exception as e:
-                st.error(f"❌ 云端下载失败，报错原因: {e}")
-                # 贴心加上排错提示
-                st.info("💡 排错指南：\n1. 请确认你的 GitHub 仓库是 Public（公开）的，如果是 Private 则代码无法直接读取。\n2. 请确认文件已经成功 Push 到 GitHub，且没有拼写错误。")
+                cached_default = st.session_state.get('step8_default_df_notes')
+                if isinstance(cached_default, pd.DataFrame) and not cached_default.empty:
+                    df_notes = cached_default.copy()
+                    st.warning("⚠️ 默认注释表暂时无法重新下载，继续使用本次会话缓存。")
+                else:
+                    st.error(f"❌ 云端下载失败，报错原因: {e}")
+                    # 贴心加上排错提示
+                    st.info("💡 排错指南：\n1. 请确认你的 GitHub 仓库是 Public（公开）的，如果是 Private 则代码无法直接读取。\n2. 请确认文件已经成功 Push 到 GitHub，且没有拼写错误。")
         else:
             notes_file = st.file_uploader("上传 Excel 分析注释表", type=['xlsx', 'xls'], key="step8_notes")
             if notes_file:
                 try:
                     df_notes = pd.read_excel(notes_file)
+                    st.session_state['step8_custom_df_notes'] = df_notes.copy()
+                    st.session_state['step8_custom_notes_name'] = getattr(notes_file, 'name', '')
+                    st.session_state['step8_notes_active_source'] = 'custom'
                     st.success("✅ 自定义注释表上传成功！")
                 except Exception as e:
                     st.error(f"❌ 上传文件解析失败: {e}")
+            else:
+                cached_custom = st.session_state.get('step8_custom_df_notes')
+                if isinstance(cached_custom, pd.DataFrame) and not cached_custom.empty:
+                    df_notes = cached_custom.copy()
+                    cached_name = st.session_state.get('step8_custom_notes_name', '已上传文件')
+                    st.caption(f"继续使用本次会话已读取的注释表：{cached_name}")
 
 # 💡 友情提示：记得在后续代码中，使用 df_notes 之前，先判断一下 if df_notes is not None:
     
@@ -3775,8 +3904,12 @@ def show_step_8_content():
         """完整报告模块渲染（标题 + 分析框 + 图表 + 注释）- 纯净版，无动态单位，无AI"""
         mod_data = notes_dict_8.get(m_id, {})
         
+        # Interactive pages use exactly the same chart-name source as the
+        # chart selector. This keeps the dropdown and page title identical in
+        # English instead of re-translating a concatenated HTML title word by
+        # word. Printed reports may still include the hierarchy path.
         full_title = mod_data.get('title', m_id)
-        if 'df_notes' in st.session_state and isinstance(st.session_state['df_notes'], pd.DataFrame):
+        if print_mode and 'df_notes' in st.session_state and isinstance(st.session_state['df_notes'], pd.DataFrame):
             df_n = st.session_state['df_notes']
             if '模块ID' in df_n.columns:
                 match = df_n[df_n['模块ID'] == m_id]
@@ -3790,6 +3923,8 @@ def show_step_8_content():
                     if title_parts:
                         full_title = " - ".join(title_parts)
 
+        display_title = translate_text(str(full_title), "en") if is_english() else str(full_title)
+
         if print_mode:
             st.markdown("<div class='page-break-container' style='margin:0;padding:0;'>", unsafe_allow_html=True)
         if not print_mode:
@@ -3800,13 +3935,17 @@ def show_step_8_content():
             
         title_cls = "page-break-title" if (print_mode and not is_first) else ""
         mt = "0px" if (print_mode and is_first) else "20px"
-        font_size = "35px" if print_mode else "30px"
+        if is_english():
+            font_size = "28px" if print_mode else "23px"
+        else:
+            font_size = "35px" if print_mode else "30px"
         st.markdown(
             f"<h3 class='{title_cls}' style='"
             f"text-align:left; color:#00338D; font-size:{font_size}; font-weight:900; "
-            f"font-family:Microsoft YaHei, 微软雅黑, sans-serif; "
+            f"font-family:Arial, Microsoft YaHei, 微软雅黑, sans-serif; line-height:1.25; "
+            f"max-width:100%; overflow-wrap:anywhere; word-break:normal; "
             f"margin-top:{mt}; margin-bottom:20px; border:none; padding-bottom:0px;'>"
-            f"{full_title}</h3>",
+            f"{display_title}</h3>",
             unsafe_allow_html=True
         )
 
@@ -3834,6 +3973,10 @@ def show_step_8_content():
                 live_generated = ""
             if live_generated:
                 analysis_custom = clean_note(live_generated)
+
+        if is_english():
+            analysis_default = translate_text(analysis_default, "en") if analysis_default else ""
+            analysis_custom = translate_text(analysis_custom, "en") if analysis_custom else ""
         
         # 2. 只有当两者至少有一个有真实文字时，才渲染这个带底色的框！
         if analysis_default or analysis_custom:
@@ -3842,12 +3985,12 @@ def show_step_8_content():
             
             if analysis_default:
                 # 默认内容：深蓝色 (#0A1F5C)
-                html += f'<p style="margin:0; color:#0A1F5C; font-size:12px; line-height:1.4;">{analysis_default}</p>'
+                html += f'<p style="margin:0; color:#0A1F5C; font-size:12px; line-height:1.6; overflow-wrap:anywhere;">{analysis_default}</p>'
                 
             if analysis_custom:
                 # 自定义内容：亮蓝色 (#1E49E2)，加粗
                 mt_space = "4px" if analysis_default else "0px" # 如果上面有默认文字，中间空出8像素距
-                html += f'<p style="margin:{mt_space} 0 0 0; color:#002678; font-size:13px; line-height:1.4;">{analysis_custom}</p>'
+                html += f'<p style="margin:{mt_space} 0 0 0; color:#002678; font-size:12px; line-height:1.6; overflow-wrap:anywhere;">{analysis_custom}</p>'
                 
             html += '</div>'
             st.markdown(html, unsafe_allow_html=True)
@@ -3857,7 +4000,7 @@ def show_step_8_content():
         if print_mode:
             render_pure_chart_entity(m_id, print_mode)
         else:
-            chart_col_left, chart_col_center, chart_col_right = st.columns([1, 10, 1])
+            chart_col_left, chart_col_center, chart_col_right = st.columns([0.25, 11.5, 0.25] if is_english() else [1, 10, 1])
             with chart_col_center:
                 render_pure_chart_entity(m_id, print_mode)
 
@@ -3910,7 +4053,7 @@ def show_step_8_content():
 
         with st.container(border=True):
             nav_options = first_levels + ["🖨️ 一键显示全部 (打印/导出)"]
-            col1, col2, col3 = st.columns([1, 1, 1.3])
+            col1, col2, col3 = st.columns([0.8, 0.8, 1.8] if is_english() else [1, 1, 1.3])
 
             with col1:
                 main_nav = st.selectbox("📁 一级模块", nav_options, key="step8_main")

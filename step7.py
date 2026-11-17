@@ -2,7 +2,7 @@
 # 从 app.py 拆分而来，依赖：streamlit、pandas、numpy、plotly，以及 st.session_state['integrated_data']（由 Step 6 写入）
 
 import pandas as pd
-import streamlit as st
+from report_i18n import extract_ai_response_text, localized_st as st
 import requests
 import re
 from bs4 import BeautifulSoup
@@ -88,8 +88,8 @@ def show_step_7_content():
     st.markdown("""
     <style>
     [data-testid="stSidebar"] { background: rgba(255,255,255,0.95) !important; border-right: 1px solid #EAEAEA !important; box-shadow: 2px 0px 15px rgba(0,0,0,0.08) !important; }
-    .nav-floating-sign { position: fixed; left: 0; top: 50%; transform: translateY(-50%); background: rgba(0, 51, 141, 0.85); color: white; padding: 20px 8px; border-radius: 0 12px 12px 0; writing-mode: vertical-rl; text-orientation: mixed; font-size: 22px; font-weight: bold; letter-spacing: 3px; z-index: 9999; cursor: pointer; box-shadow: 3px 3px 12px rgba(0,0,0,0.25); transition: all 0.2s; }
-    .nav-floating-sign:hover { background: rgba(0, 51, 141, 1); padding-left: 15px; }
+    .nav-floating-sign { position: fixed; left: 0; top: 50%; transform: translateY(-50%); background: rgba(0, 51, 141, 0.85); color: white; padding: 14px 6px; border-radius: 0 10px 10px 0; writing-mode: vertical-rl; text-orientation: mixed; font-size: 17px; line-height: 1.15; font-weight: bold; letter-spacing: 1px; max-height: 230px; overflow: hidden; z-index: 9999; cursor: pointer; box-shadow: 3px 3px 12px rgba(0,0,0,0.25); transition: all 0.2s; }
+    .nav-floating-sign:hover { background: rgba(0, 51, 141, 1); padding-left: 10px; }
    
     /* 放在 @media print { } 块的外面 */
     .stPlotlyChart {
@@ -976,13 +976,32 @@ def show_step_7_content():
         if use_default:
             try:
                 df_notes = pd.read_excel("https://raw.githubusercontent.com/crystalplum07/bm-platform/main/templates/step7-%E5%9B%BE%E7%89%87%E5%86%85%E5%AE%B9%E5%88%86%E6%9E%90%E5%92%8C%E6%B3%A8%E9%87%8A%E6%A8%A1%E6%9D%BF.xlsx")
+                st.session_state['step7_default_df_notes'] = df_notes.copy()
+                st.session_state['step7_notes_active_source'] = 'default'
                 st.success("✅ 内置默认注释表加载成功")
             except Exception as e:
-                st.error(f"❌ 加载失败：{e}")
+                cached_default = st.session_state.get('step7_default_df_notes')
+                if isinstance(cached_default, pd.DataFrame) and not cached_default.empty:
+                    df_notes = cached_default.copy()
+                    st.warning("⚠️ 默认注释表暂时无法重新下载，继续使用本次会话缓存。")
+                else:
+                    st.error(f"❌ 加载失败：{e}")
         else:
             st.info("💡 请上传包含【图片文件名】【模块ID】【一级分类】【二级分类】【对应图表名称】【分析内容】【注释内容】的 Excel")
-            notes_file = st.file_uploader("上传 Excel", type=['xlsx', 'xls'])
-            if notes_file: df_notes = pd.read_excel(notes_file)
+            notes_file = st.file_uploader(
+                "上传 Excel", type=['xlsx', 'xls'], key="step7_notes_uploader"
+            )
+            if notes_file:
+                df_notes = pd.read_excel(notes_file)
+                st.session_state['step7_custom_df_notes'] = df_notes.copy()
+                st.session_state['step7_custom_notes_name'] = getattr(notes_file, 'name', '')
+                st.session_state['step7_notes_active_source'] = 'custom'
+            else:
+                cached_custom = st.session_state.get('step7_custom_df_notes')
+                if isinstance(cached_custom, pd.DataFrame) and not cached_custom.empty:
+                    df_notes = cached_custom.copy()
+                    cached_name = st.session_state.get('step7_custom_notes_name', '已上传文件')
+                    st.caption(f"继续使用本次会话已读取的注释表：{cached_name}")
 
         if df_notes is not None:
             # 统一清洗文本前后的空格
@@ -1010,6 +1029,7 @@ def show_step_7_content():
                 if m_id not in ordered_modules: ordered_modules.append(m_id)
             # 存入全局缓存
             st.session_state['df_notes'] = df_notes
+            st.session_state['step7_df_notes'] = df_notes.copy()
     st.markdown("</div>", unsafe_allow_html=True)
     # ==========================================
     # 4. 侧边栏：智能多级联动导航（防越界护盾版）
@@ -1114,11 +1134,34 @@ def show_step_7_content():
         
             if "s7_company_types" not in st.session_state:
                 st.session_state["s7_company_types"] = ["全部"]
+
+            # 兼容旧会话中残留的英文显示值；组件内部始终使用中文原始值。
+            type_value_aliases = {
+                "All": "全部",
+                "Leading": "头部",
+                "Top tier": "头部",
+                "Foreign-invested": "外资系",
+                "Bank-affiliated": "银行系",
+                "Mid-sized": "中型",
+                "Small": "小型",
+                "Pension": "养老",
+                "Health": "健康",
+            }
+            canonical_type_options = ["全部"] + type_options
+            saved_types = st.session_state.get("s7_company_types", ["全部"])
+            saved_types = [
+                type_value_aliases.get(str(value), value)
+                for value in saved_types
+            ]
+            saved_types = [
+                value for value in saved_types if value in canonical_type_options
+            ] or ["全部"]
+            st.session_state["s7_company_types"] = saved_types
         
             selected_types_raw = st.multiselect(
                 "公司类型",
-                options=["全部"] + type_options,
-                default=st.session_state["s7_company_types"],
+                options=canonical_type_options,
+                default=saved_types,
                 key="s7_company_types"
             )
         
@@ -1196,7 +1239,12 @@ def show_step_7_content():
         st.markdown("---")
         st.caption("📸 手动上传图片（png或jpg）")
         if 'manual_upload_images' not in st.session_state: st.session_state.manual_upload_images = {}
-        uploaded_files = st.file_uploader("拖入截图文件", type=['png', 'jpg'], accept_multiple_files=True)
+        uploaded_files = st.file_uploader(
+            "拖入截图文件",
+            type=['png', 'jpg'],
+            accept_multiple_files=True,
+            key="step7_screenshot_uploader",
+        )
         
         if uploaded_files and ordered_modules:
             code_rendered_mids = {"summary_table", "csm_growth_chart", "another_code_chart"} 
@@ -1226,7 +1274,7 @@ def show_step_7_content():
             client = openai.OpenAI(api_key=user_api_key, base_url=api_base)
             prompt = f"你是资深四大精算专家。几家险企{period_label}【{field_name}】数据(单位:{unit_str}):{data_str}。请一句话点评(指出极值与趋势)，不超60字。"
             res = client.chat.completions.create(model=api_model, messages=[{"role": "user", "content": prompt}], temperature=0.2)
-            return f"<b><span style='color:#00338D'></span></b> {res.choices[0].message.content}"
+            return f"<b><span style='color:#00338D'></span></b> {extract_ai_response_text(res)}"
         except Exception as e: return f"<span style='color:#C00000; font-size:12px;'>⚠️ AI报错: {str(e)}</span>"
 
     def generate_ai_insight(df, field_name, is_pct=False):
@@ -1240,7 +1288,7 @@ def show_step_7_content():
             if d_sub.empty: return ""
             val_col = "(百万)人民币" if "(百万)人民币" in d_sub.columns else d_sub.columns[-1]
 
-            ukey, ubase, umodel = st.session_state.get('api_key', "").strip(), st.session_state.get('base_url', "https://api.deepseek.com"), st.session_state.get('model_name', "deepseek-chat")
+            ukey, ubase, umodel = st.session_state.get('api_key', "").strip(), st.session_state.get('base_url', "https://api.deepseek.com"), st.session_state.get('model_name', "deepseek-flash")
             if ukey:
                 return _call_llm_api_cached(", ".join([f"{r['公司']}:{r[val_col]:.2f}" for _, r in d_sub.iterrows()]), field_name, cy_label, "百分比" if is_pct else unit_label, ukey, ubase, umodel)
             avg, max_r, min_r, fmt, mlt = d_sub[val_col].mean(), d_sub.loc[d_sub[val_col].idxmax()], d_sub.loc[d_sub[val_col].idxmin()], "{:.1f}%" if is_pct else "{:.1f}", 100 if is_pct else (1/divisor)
@@ -5529,31 +5577,7 @@ def show_step_7_content():
             
             cover_url = "https://github.com/lifeact666/-annual-report-tool/raw/main/picture/%E6%A0%87%E9%A2%98%E9%A1%B5.png"
             back_url  = "https://github.com/lifeact666/-annual-report-tool/raw/main/picture/%E5%B0%81%E5%BA%95%E9%A1%B5.png"
-            
-            
-            appendix_urls = [
-                "https://github.com/lifeact666/-annual-report-tool/raw/main/picture/%E6%96%B0%E5%87%86%E5%88%991.png",
-                "https://github.com/lifeact666/-annual-report-tool/raw/main/picture/%E6%96%B0%E5%87%86%E5%88%992.png",
-                "https://github.com/lifeact666/-annual-report-tool/raw/main/picture/%E6%96%B0%E5%87%86%E5%88%993.png"
-            ]
-            
-            def render_appendix_insert_pages():
-                for url in appendix_urls:
-                    st.markdown(f"""
-                    <div style="position:relative; width:338.67mm; height:175.5mm;
-                        page-break-before:always; overflow:hidden; margin:0; padding:0;
-                        -webkit-print-color-adjust:exact; print-color-adjust:exact; forced-color-adjust:none;">
-                        <img src="{url}" style="width:100%; height:100%; object-fit:cover; display:block;"/>
-                    </div>
-                    """, unsafe_allow_html=True)            
-            
-            
-            
-            
-            
-            
-            
-            
+
             # ✅ 封面：用st.image撑满，components.html叠加绝对定位文字
             st.markdown(f"""
             <div style="position:relative; width:338.67mm;  height:175.5mm;    
@@ -5583,13 +5607,7 @@ def show_step_7_content():
             """, unsafe_allow_html=True)
 
             #--------渲染图表和页码-------
-            appendix_inserted = False
-            
             for i, mod in enumerate(ordered_modules):
-                if (not appendix_inserted) and str(mod).strip() == "report_detail":
-                    render_appendix_insert_pages()
-                    appendix_inserted = True
-            
                 render_report_module(mod, print_mode=True, is_first=(i == 0))
                 
             st.markdown(f"""

@@ -1,0 +1,13 @@
+{
+  "release": "cross-computer-compatible-v1",
+  "python_recommended": "3.13.5",
+  "sha256": {
+    "app.py": "9f3b4ab5860c8e861e72c21aa0cec52b3c5fcdf1602d90e69c4e0e6025e6bc1f",
+    "step7.py": "5be61a1956fcaa7bbf17c0c5a82b90bbc943fcd006bd135ecd55cd7962e5f2ff",
+    "step8.py": "928428003910dc2a54d86924160bb281cf7491f6a195d21ad26620553b7cb0b3",
+    "report_i18n.py": "24833121d4489ca0ba9ada04c1ed8fb094e6f959455046ed83edf9c48e0393da",
+    "requirements.txt": "8f4542f06e851e01506894feda2048ee398e4008dbc3b4a9679b95cbf2f53a64",
+    "environment.yml": "725f8368d5cc035d9a96f33742b461936e750624e08053a5974872bad6061935",
+    "templates/中英文翻译词典.xlsx": "0a12157361f75c20d7810cd2ecd1fbddb6e61b656f94ef7f45326eac5b43ab1c"
+  }
+}

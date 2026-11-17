@@ -16,7 +16,14 @@ import openpyxl
 from openpyxl.utils import get_column_letter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from openai import OpenAI
-import streamlit as st
+from report_i18n import (
+    extract_ai_response_text,
+    localized_st as st,
+    option_formatter,
+    render_language_switch,
+    sync_language_from_display_control,
+    translate_text,
+)
 import requests
 from bs4 import BeautifulSoup
 import plotly.express as px
@@ -67,6 +74,8 @@ st.set_page_config(
     page_icon="Digi.png",  # ✨ 修改点：加上 .png 后缀
     layout="wide"
 )
+# 同步上一次选择的语言，确保顶部状态栏和 Tab 在同一次重跑中切换。
+sync_language_from_display_control()
 # 放在这里最合适：页面刚开始渲染，就立刻注入这段隐形的保活脚本
 # ==========================================
 components.html("""
@@ -146,7 +155,7 @@ def extract_single_page_vision(pdf_bytes, page_num, expected_name, api_key, base
         )
         
         # 4. 解析结果
-        result_text = response.choices[0].message.content.strip()
+        result_text = extract_ai_response_text(response)
         result_text = re.sub(r'^```(csv|text)?\n?', '', result_text, flags=re.MULTILINE).replace("```", "").strip()
         
         lines = result_text.split('\n')
@@ -203,7 +212,7 @@ def extract_single_page(pdf_bytes, page_num, expected_name, api_key, base_url, m
         temperature=0.0
     )
     
-    result_text = response.choices[0].message.content.strip()
+    result_text = extract_ai_response_text(response)
     result_text = re.sub(r'^```(csv|text)?\n?', '', result_text, flags=re.MULTILINE)
     result_text = result_text.replace("```", "").strip()
     
@@ -431,7 +440,7 @@ def ai_find_pages(pdf_bytes, api_key, target_tables, base_url, model_name):
         temperature=0.1
     )
     
-    result_text = response.choices[0].message.content.strip()
+    result_text = extract_ai_response_text(response)
     result_text = result_text.replace("```json", "").replace("```", "").strip()
     return json.loads(result_text)
 
@@ -484,7 +493,7 @@ st.markdown("""
 # ==========================================
 # 🔐 1. 初始化系统状态变量 
 # ==========================================
-for k, v in {'logged_in':False, 'user_role':None, 'api_key':"", 'base_url':"https://api.deepseek.com", 'model_name':"deepseek-chat"}.items():
+for k, v in {'logged_in':False, 'user_role':None, 'api_key':"", 'base_url':"https://api.deepseek.com", 'model_name':"deepseek-flash"}.items():
     if k not in st.session_state: st.session_state[k] = v
 
 # ==========================================
@@ -531,12 +540,12 @@ if not st.session_state['logged_in']:
         sec_code = st.text_input("安全验证", type="password", placeholder="请输入内部安全码") 
         
         # 字典映射压缩代码体积
-        ai_map = {"阿里云百炼 (通义千问)": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"), "DeepSeek (深度求索)": ("https://api.deepseek.com", "deepseek-chat"), "月之暗面 (Kimi)": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"), "智谱AI (GLM-4)": ("https://open.bigmodel.cn/api/paas/v4", "glm-4"), "OpenAI (ChatGPT)": ("https://api.openai.com/v1", "gpt-4o")}
+        ai_map = {"阿里云百炼 (通义千问)": ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus"), "DeepSeek (深度求索)": ("https://api.deepseek.com", "deepseek-flash"), "月之暗面 (Kimi)": ("https://api.moonshot.cn/v1", "moonshot-v1-8k"), "智谱AI (GLM-4)": ("https://open.bigmodel.cn/api/paas/v4", "glm-4"), "OpenAI (ChatGPT)": ("https://api.openai.com/v1", "gpt-4o")}
         ai_pr = st.selectbox("选择您将使用的AI", list(ai_map.keys()) + ["自定义私有化节点"])
         
-        d_url, d_mod = ai_map.get(ai_pr, ("https://api.deepseek.com", "deepseek-chat"))
+        d_url, d_mod = ai_map.get(ai_pr, ("https://api.deepseek.com", "deepseek-flash"))
         if ai_pr == "自定义私有化节点":
-            d_url, d_mod = st.text_input("RPC 接口地址", "https://api.deepseek.com"), st.text_input("指定模型版本", "deepseek-chat")
+            d_url, d_mod = st.text_input("RPC 接口地址", "https://api.deepseek.com"), st.text_input("指定模型版本", "deepseek-flash")
 
         api_input = st.text_input("请填写您使用AI的API Key", type="password", placeholder=" sk-... (不填则仅开放年报检测、数据合并及可视化本地分析功能)")
         
@@ -570,11 +579,11 @@ else:
     # 代码规范锁：0123456789
     api_key = st.session_state.get('api_key', "")
     base_url = st.session_state.get('base_url', "https://api.deepseek.com")
-    model_name = st.session_state.get('model_name', "deepseek-chat")
+    model_name = st.session_state.get('model_name', "deepseek-flash")
     user_role = st.session_state.get('user_role', "普通用户") 
 
     # 顶部状态栏与退出按钮
-    top_col1, top_col2 = st.columns([8, 1])
+    top_col1, top_col2, top_col3 = st.columns([6, 2.2, 1.4])
     with top_col1:
         st.markdown(
             f"<div class='no-print' style='color: #6c757d; font-size: 14px; margin-top: 8px;'>"
@@ -583,6 +592,8 @@ else:
             unsafe_allow_html=True
         )
     with top_col2:
+        render_language_switch()
+    with top_col3:
         if st.button("退出登录"):
             st.session_state['logged_in'] = False
             st.rerun()
@@ -598,7 +609,7 @@ else:
             " 📊 Step 6 ／ 自定义对标分析 ",
             " 🖼️ Step 7 ／ 公司级对标报告 ",
             " 📈 Step 8 ／ 行业分类统计分析 ",
-        ])
+        ], key="workflow_main_tab", on_change="rerun")
         
         # ─────────── 以下是各 Tab 对应的内容 ───────────
         KPMG_CATEGORIES = {
@@ -608,7 +619,7 @@ else:
         }
         DEFAULT_COLORS = list(KPMG_CATEGORIES["Primary Colors"].values()) + list(KPMG_CATEGORIES["Accent Colors"].values())
         
-        import streamlit as st
+        from report_i18n import localized_st as st
         import pandas as pd
         import numpy as np
         import re
@@ -633,15 +644,26 @@ else:
                 st.session_state['integrated_data'] = None
 
             source_choice = st.radio(
-                "数据源选择", ["直接引用集成后的数据", "上传集成表 Excel"], horizontal=True
+                "数据源选择", ["直接引用集成后的数据", "上传集成表 Excel"],
+                horizontal=True, key="step6_source_choice"
             )
             df_raw = None
 
             if source_choice == "上传集成表 Excel":
-                viz_file = st.file_uploader("上传行业集成目标表", type=["xlsx"])
+                viz_file = st.file_uploader(
+                    "上传行业集成目标表", type=["xlsx"], key="step6_integrated_file"
+                )
                 if viz_file:
+                    viz_file.seek(0)
                     df_raw = pd.read_excel(viz_file)
                     st.session_state['integrated_data'] = df_raw
+                    st.session_state['step6_integrated_file_name'] = getattr(viz_file, 'name', '')
+                else:
+                    # 语言切换会触发整页重跑；上传控件暂时取不到文件时，继续使用缓存数据。
+                    df_raw = st.session_state.get('integrated_data')
+                    if isinstance(df_raw, pd.DataFrame) and not df_raw.empty:
+                        cached_name = st.session_state.get('step6_integrated_file_name', '已上传集成表')
+                        st.caption(f"继续使用本次会话已读取的集成表：{cached_name}")
             else:
                 df_raw = st.session_state.get('integrated_data')
 
@@ -882,8 +904,8 @@ else:
                                     plot_df_base = df_pivot[['公司', '报告期间', target_field]].rename(columns={target_field: 'final_val'}).copy()
                                 else:
                                     v1, v2 = st.columns(2)
-                                    var_a = v1.selectbox("变量 A", all_fields, index=0)
-                                    var_b = v2.selectbox("变量 B", ["无"] + all_fields, index=1 if len(all_fields) > 1 else 0)
+                                    var_a = v1.selectbox(translate_text("变量 A"), all_fields, index=0, format_func=option_formatter())
+                                    var_b = v2.selectbox(translate_text("变量 B"), ["无"] + all_fields, index=1 if len(all_fields) > 1 else 0, format_func=option_formatter())
                                     formula_input = st.text_input("✏️ 自定义公式 (使用 A 和 B)", value="A - B")
                                     try:
                                         A_data, B_data = safe_num(df_pivot[var_a]).fillna(0), (safe_num(df_pivot[var_b]).fillna(0) if var_b != "无" else 0)
@@ -1102,7 +1124,7 @@ else:
         tab6, tab7 = st.tabs([
             " 📊 Step 6 ／ 自定义对标分析 ",
             " 🖼️ Step 7 ／ 公司级对标报告 "
-        ])
+        ], key="workflow_main_tab", on_change="rerun")
         
         # ─────────── KPMG 官方色卡 ───────────
         KPMG_CATEGORIES = {
@@ -1121,15 +1143,26 @@ else:
                 st.session_state['integrated_data'] = None
         
             source_choice = st.radio(
-                "数据源选择", ["直接引用集成后的数据", "上传集成表 Excel"], horizontal=True
+                "数据源选择", ["直接引用集成后的数据", "上传集成表 Excel"],
+                horizontal=True, key="step6_source_choice"
             )
             df_raw = None
         
             if source_choice == "上传集成表 Excel":
-                viz_file = st.file_uploader("上传行业集成目标表", type=["xlsx"])
+                viz_file = st.file_uploader(
+                    "上传行业集成目标表", type=["xlsx"], key="step6_integrated_file"
+                )
                 if viz_file:
+                    viz_file.seek(0)
                     df_raw = pd.read_excel(viz_file)
                     st.session_state['integrated_data'] = df_raw
+                    st.session_state['step6_integrated_file_name'] = getattr(viz_file, 'name', '')
+                else:
+                    # 语言切换时优先复用已读取的数据，避免要求用户重复上传。
+                    df_raw = st.session_state.get('integrated_data')
+                    if isinstance(df_raw, pd.DataFrame) and not df_raw.empty:
+                        cached_name = st.session_state.get('step6_integrated_file_name', '已上传集成表')
+                        st.caption(f"继续使用本次会话已读取的集成表：{cached_name}")
             else:
                 df_raw = st.session_state.get('integrated_data')
         
@@ -1296,8 +1329,8 @@ else:
                                     plot_df_base = df_pivot[['公司', '报告年份', target_field]].rename(columns={target_field: 'final_val'}).copy()
                                 else:
                                     v1, v2 = st.columns(2)
-                                    var_a = v1.selectbox("变量 A", all_fields, index=0)
-                                    var_b = v2.selectbox("变量 B", ["无"] + all_fields, index=1 if len(all_fields) > 1 else 0)
+                                    var_a = v1.selectbox(translate_text("变量 A"), all_fields, index=0, format_func=option_formatter())
+                                    var_b = v2.selectbox(translate_text("变量 B"), ["无"] + all_fields, index=1 if len(all_fields) > 1 else 0, format_func=option_formatter())
                                     formula_input = st.text_input("✏️ 自定义公式 (使用 A 和 B)", value="A - B")
                                     try:
                                         A_data, B_data = safe_num(df_pivot[var_a]).fillna(0), (safe_num(df_pivot[var_b]).fillna(0) if var_b != "无" else 0)

@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+# AI 兜底翻译运行时生成的缓存（可人工校对后合并进静态字典）
+i18n_ai_cache.json
